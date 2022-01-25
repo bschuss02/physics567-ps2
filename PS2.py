@@ -1,13 +1,19 @@
-from operator import is_
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.integrate import odeint
 
 class ButeraSmith():
 
-    def __init__(self, tmax, el, is_reduction):
+    def __init__(self, tmax, el, is_reduction, is_plotting_phase_plane):
         self.is_reduction = is_reduction
+        self.is_plotting_phase_plane = is_plotting_phase_plane
         self.tmax = tmax
+
+        self.v_nullcline_1 = []
+        self.h_nullcline_1 = []
+
+        self.v_nullcline_2 = []
+        self.h_nullcline_2 = []
 
         """Full Butera-Smith Model implemented in Python"""
 
@@ -15,7 +21,7 @@ class ButeraSmith():
         """membrane capacitance, in uF/cm^2"""
 
         self.gna = 28.0
-        if is_reduction: self.gna = 0
+        if self.is_reduction: self.gna = 0
         """Sodium (Na) maximum conductance, in mS/cm^2"""
 
         self.gk  =  11.2
@@ -160,6 +166,14 @@ class ButeraSmith():
         dndt = (self.ninf(v) - n) / self.taun(v)
         dhdt = (self.hinf(v) - h) / self.tauh(v)
 
+        if  -.00001 < dvdt < .00001:
+            self.v_nullcline_1.append(v)
+            self.h_nullcline_1.append(h)
+
+        if  -.00001 < dhdt < .00001:
+            self.v_nullcline_2.append(v)
+            self.h_nullcline_2.append(h)
+
         # dVdt = (self.I_inj(t) - self.I_Na(V, m, h) - self.I_K(V, n) - self.I_L(V)) / self.C_m
         # dmdt = self.alpha_m(V)*(1.0-m) - self.beta_m(V)*m
         # dhdt = self.alpha_h(V)*(1.0-h) - self.beta_h(V)*h
@@ -183,7 +197,9 @@ class ButeraSmith():
         ik = self.ik(V, n)
         il = self.il(V)
 
-        fig, axs = plt.subplots(4)
+
+        # if not self.is_plotting_phase_plane:
+        fig, axs = plt.subplots(6)
         fig.suptitle('Butera-Smith')
         fig.subplots_adjust(hspace=.5)
         axs[0].plot(self.t, V, 'k')
@@ -201,6 +217,14 @@ class ButeraSmith():
         # i_inj_values = [self.I_inj(t) for t in self.t]
         # axs[3].plot(self.t, i_inj_values, 'k')
         # axs[3].set(xlabel='t (ms)',ylabel='$I_{inj}$ ($\\mu{A}/cm^2$)')
+        axs[3].plot(V, h)
+        axs[3].set(xlabel='V (mv)', ylabel='h')
+
+        axs[4].plot(self.v_nullcline_1, self.h_nullcline_1, 'ro')
+        axs[4].set(xlabel='V nullcline 1 (mv)', ylabel='h nullcline 1')
+
+        axs[4].plot(self.v_nullcline_2, self.h_nullcline_2, '-')
+        axs[4].set(xlabel='V nullcline 2 (mv)', ylabel='h nullcline 2')
 
         plt.savefig('BS-I10.jpg', format = 'jpg')
 
@@ -208,11 +232,10 @@ class ButeraSmith():
 
 
 
-
 if __name__ == '__main__':
     # runner = ButeraSmith(tmax=10000.0, el=-65.0, is_reduction=False)
     # runner.Main()
-    runner = ButeraSmith(tmax=100000.0, el=-60.0, is_reduction=True)
+    runner = ButeraSmith(tmax=100000.0, el=-60.0, is_reduction=True, is_plotting_phase_plane=True)
     runner.Main()
     # runner = ButeraSmith(tmax=1000.0, el=-65.0, is_reduction=False)
     # runner.Main()
