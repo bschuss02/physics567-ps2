@@ -4,16 +4,9 @@ from scipy.integrate import odeint
 
 class ButeraSmith():
 
-    def __init__(self, tmax, el, is_reduction, is_plotting_phase_plane):
+    def __init__(self, tmax, el, is_reduction):
         self.is_reduction = is_reduction
-        self.is_plotting_phase_plane = is_plotting_phase_plane
         self.tmax = tmax
-
-        self.v_nullcline_1 = []
-        self.h_nullcline_1 = []
-
-        self.v_nullcline_2 = []
-        self.h_nullcline_2 = []
 
         """Full Butera-Smith Model implemented in Python"""
 
@@ -84,6 +77,13 @@ class ButeraSmith():
     
     def inap(self, v, h):
         return self.gnap * self.mninf(v) * h * (v-self.ena)
+
+    def v_nullcline(self, v):
+        n = self.ninf(v)
+        return (-self.il(v) - self.ina(v, n) - self.ik(v, n)) / (self.gnap * self.minf(v) * (v-self.ena))
+    
+    def h_nullcline(self, v):
+        return 1 / (1 + np.exp((v + 48.0) / 12))
 
     
     # def alpha_m(self, V):
@@ -166,14 +166,6 @@ class ButeraSmith():
         dndt = (self.ninf(v) - n) / self.taun(v)
         dhdt = (self.hinf(v) - h) / self.tauh(v)
 
-        if  -.00001 < dvdt < .00001:
-            self.v_nullcline_1.append(v)
-            self.h_nullcline_1.append(h)
-
-        if  -.00001 < dhdt < .00001:
-            self.v_nullcline_2.append(v)
-            self.h_nullcline_2.append(h)
-
         # dVdt = (self.I_inj(t) - self.I_Na(V, m, h) - self.I_K(V, n) - self.I_L(V)) / self.C_m
         # dmdt = self.alpha_m(V)*(1.0-m) - self.beta_m(V)*m
         # dhdt = self.alpha_h(V)*(1.0-h) - self.beta_h(V)*h
@@ -189,16 +181,20 @@ class ButeraSmith():
         V = X[:,0]
         n = X[:,1]
         h = X[:,2]
-        # V = X[:,0]
-        # m = X[:,1]
-        # h = X[:,2]
-        # n = X[:,3]
+
+        v_range = np.arange(-60, -25, .1)
+        v_nullcline_y = []
+        h_nullcline_y = []
+
+        for v in np.nditer(v_range):
+            v_nullcline_y.append(self.v_nullcline(v))
+            h_nullcline_y.append(self.h_nullcline(v))
+
         ina = self.ina(V, n)
         ik = self.ik(V, n)
         il = self.il(V)
 
 
-        # if not self.is_plotting_phase_plane:
         fig, axs = plt.subplots(6)
         fig.suptitle('Butera-Smith')
         fig.subplots_adjust(hspace=.5)
@@ -220,11 +216,11 @@ class ButeraSmith():
         axs[3].plot(V, h)
         axs[3].set(xlabel='V (mv)', ylabel='h')
 
-        axs[4].plot(self.v_nullcline_1, self.h_nullcline_1, 'ro')
-        axs[4].set(xlabel='V nullcline 1 (mv)', ylabel='h nullcline 1')
+        axs[4].plot(list(v_range), v_nullcline_y)
+        axs[4].set(xlabel='V (-100 to 30 mv)', ylabel='h (V nullcline)')
 
-        axs[4].plot(self.v_nullcline_2, self.h_nullcline_2, '-')
-        axs[4].set(xlabel='V nullcline 2 (mv)', ylabel='h nullcline 2')
+        axs[5].plot(list(v_range), h_nullcline_y)
+        axs[5].set(xlabel='V (-100 to 30 mv)', ylabel='h (h nullcline)')
 
         plt.savefig('BS-I10.jpg', format = 'jpg')
 
@@ -235,7 +231,7 @@ class ButeraSmith():
 if __name__ == '__main__':
     # runner = ButeraSmith(tmax=10000.0, el=-65.0, is_reduction=False)
     # runner.Main()
-    runner = ButeraSmith(tmax=100000.0, el=-60.0, is_reduction=True, is_plotting_phase_plane=True)
+    runner = ButeraSmith(tmax=50000.0, el=-60.0, is_reduction=True)
     runner.Main()
     # runner = ButeraSmith(tmax=1000.0, el=-65.0, is_reduction=False)
     # runner.Main()
@@ -250,6 +246,7 @@ taux(v,vt,sig,tau)=tau/cosh((v-vt)/(2*sig))
 # leak
 il=gl*(v-el)
 par gl=2.8,el=-65
+
 # fast sodium --  h=1-n
 minf(v)=xinf(v,-34,-5)
 ina=gna*minf(v)^3*(1-n)*(v-ena)
@@ -267,6 +264,7 @@ hinf(v)=xinf(v,-48,6)
 tauh(v)=taux(v,-48,6,taubar)
 par gnap=2.8,taubar=10000
 inap=gnap*mninf(v)*h*(v-ena)
+
 v' = (i-il-ina-ik-inap)/cm
 n'=(ninf(v)-n)/taun(v)
 h'=(hinf(v)-h)/tauh(v)
