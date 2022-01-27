@@ -4,8 +4,9 @@ from scipy.integrate import odeint
 
 class ButeraSmith():
 
-    def __init__(self, tmax, el, is_reduction):
+    def __init__(self, tmax, el, is_reduction, is_plotting_nullcline):
         self.is_reduction = is_reduction
+        self.is_plotting_nullcline = is_plotting_nullcline
         self.tmax = tmax
 
         """Full Butera-Smith Model implemented in Python"""
@@ -30,7 +31,7 @@ class ButeraSmith():
         """Postassium (K) Nernst reversal potential, in mV"""
 
         self.el  = el
-        # """Leak Nernst reversal potential, in mV"""
+        """Leak Nernst reversal potential, in mV"""
 
         self.t = np.arange(0.0, tmax, 0.01)
         """ The time to integrate over """
@@ -80,74 +81,20 @@ class ButeraSmith():
 
     def v_nullcline(self, v):
         n = self.ninf(v)
-        return (-self.il(v) - self.ina(v, n) - self.ik(v, n)) / (self.gnap * self.minf(v) * (v-self.ena))
+        return (self.i - self.il(v) - self.ina(v, n) - self.ik(v, n)) / (self.gnap * self.mninf(v) * (v-self.ena))
     
     def h_nullcline(self, v):
         return 1 / (1 + np.exp((v + 48.0) / 12))
 
-    
-    # def alpha_m(self, V):
-    #     """Na channel activation gate opening rate. Function of membrane voltage"""
-    #     return 0.1*(V+40.0)/(1.0 - np.exp(-(V+40.0) / 10.0))
+    def graph_nullcline(self, v_range):
+        v_nullcline_y = []
+        h_nullcline_y = []
 
-    # def beta_m(self, V):
-    #     """Na channel activation gate closing rate. Function of membrane voltage"""
-    #     return 4.0*np.exp(-(V+65.0) / 18.0)
+        for v in np.nditer(v_range):
+            v_nullcline_y.append(self.v_nullcline(v))
+            h_nullcline_y.append(self.h_nullcline(v))
 
-    # def alpha_h(self, V):
-    #     """Na channel inactivation gate opening rate. Function of membrane voltage"""
-    #     return 0.07*np.exp(-(V+65.0) / 20.0)
-
-    # def beta_h(self, V):
-    #     """Na channel inactivation gate closing rate. Function of membrane voltage"""
-    #     return 1.0/(1.0 + np.exp(-(V+35.0) / 10.0))
-
-    # def alpha_n(self, V):
-    #     """K channel activation gate opening rate. Function of membrane voltage"""
-    #     return 0.01*(V+55.0)/(1.0 - np.exp(-(V+55.0) / 10.0))
-
-    # def beta_n(self, V):
-    #     """K channel activation gate closing rate. Function of membrane voltage"""
-    #     return 0.125*np.exp(-(V+65) / 80.0)
-
-    # def I_Na(self, V, m, h):
-    #     """
-    #     Membrane current (in uA/cm^2)
-    #     Sodium 
-    #     |  :param V:
-    #     |  :param m:
-    #     |  :param h:
-    #     |  :return:
-    #     """
-    #     return self.g_Na * m**3 * h * (V - self.E_Na)
-
-    # def I_K(self, V, n):
-    #     """
-    #     Membrane current (in uA/cm^2)
-    #     Potassium 
-    #     |  :param V:
-    #     |  :param h:
-    #     |  :return:
-    #     """
-    #     return self.g_K  * n**4 * (V - self.E_K)
-
-    # def I_L(self, V):
-    #     """
-    #     Membrane current (in uA/cm^2)
-    #     Leak
-    #     |  :param V:
-    #     |  :return:
-    #     """
-    #     return self.g_L * (V - self.E_L)
-
-    # def I_inj(self, t):
-    #     """
-    #     External Current
-    #     |  :param t: time
-    #     |  :return: step up to 10 uA/cm^2 at t>100
-    #     |           step down to 0 uA/cm^2 at t>600
-    #     """
-    #     return self.I_app*(t>100) - self.I_app*(t>600)
+        return v_nullcline_y, h_nullcline_y
 
     @staticmethod
     def dALLdt(X, t, self):
@@ -161,15 +108,10 @@ class ButeraSmith():
         v, n, h = X
         if self.is_reduction: n = self.ninf(v)
 
-
         dvdt = (self.i - self.il(v) - self.ina(v, n) - self.ik(v, n) - self.inap(v, h)) / self.cm
         dndt = (self.ninf(v) - n) / self.taun(v)
         dhdt = (self.hinf(v) - h) / self.tauh(v)
 
-        # dVdt = (self.I_inj(t) - self.I_Na(V, m, h) - self.I_K(V, n) - self.I_L(V)) / self.C_m
-        # dmdt = self.alpha_m(V)*(1.0-m) - self.beta_m(V)*m
-        # dhdt = self.alpha_h(V)*(1.0-h) - self.beta_h(V)*h
-        # dndt = self.alpha_n(V)*(1.0-n) - self.beta_n(V)*n
         return dvdt, dndt, dhdt
 
     def Main(self):
@@ -182,59 +124,60 @@ class ButeraSmith():
         n = X[:,1]
         h = X[:,2]
 
-        v_range = np.arange(-60, -25, .1)
-        v_nullcline_y = []
-        h_nullcline_y = []
-
-        for v in np.nditer(v_range):
-            v_nullcline_y.append(self.v_nullcline(v))
-            h_nullcline_y.append(self.h_nullcline(v))
+        v_range = np.arange(-62, -25, .1)
+        v_nullcline_y, h_nullcline_y = self.graph_nullcline(v_range)
 
         ina = self.ina(V, n)
         ik = self.ik(V, n)
         il = self.il(V)
 
+        if not self.is_plotting_nullcline:
+            num_plots = 3
+            fig, axs = plt.subplots(num_plots)
+            fig.suptitle('Butera-Smith')
+            fig.subplots_adjust(hspace=.5)
+            axs[0].plot(self.t, V, 'k')
+            axs[0].set(ylabel='V (mV)')
+            axs[1].plot(self.t, ina, 'c', label='$I_{Na}$')
+            axs[1].plot(self.t, ik, 'y', label='$I_{K}$')
+            axs[1].plot(self.t, il, 'm', label='$I_{L}$')
+            axs[1].set(ylabel='Currents')
+            axs[1].legend()
+            # axs[2].plot(self.t, m, 'r', label='m')
+            axs[2].plot(self.t, h, 'g', label='h')
+            axs[2].plot(self.t, n, 'b', label='n')
+            axs[2].set(ylabel='Gating Variables')
+            axs[2].legend()
+            # i_inj_values = [self.I_inj(t) for t in self.t]
+            # axs[3].plot(self.t, i_inj_values, 'k')
+            # axs[3].set(xlabel='t (ms)',ylabel='$I_{inj}$ ($\\mu{A}/cm^2$)')
+            # axs[3].plot(V, h)
+            # axs[3].set(xlabel='V (mv)', ylabel='h')
 
-        fig, axs = plt.subplots(6)
-        fig.suptitle('Butera-Smith')
-        fig.subplots_adjust(hspace=.5)
-        axs[0].plot(self.t, V, 'k')
-        axs[0].set(ylabel='V (mV)')
-        axs[1].plot(self.t, ina, 'c', label='$I_{Na}$')
-        axs[1].plot(self.t, ik, 'y', label='$I_{K}$')
-        axs[1].plot(self.t, il, 'm', label='$I_{L}$')
-        axs[1].set(ylabel='Currents')
-        axs[1].legend()
-        # axs[2].plot(self.t, m, 'r', label='m')
-        axs[2].plot(self.t, h, 'g', label='h')
-        axs[2].plot(self.t, n, 'b', label='n')
-        axs[2].set(ylabel='Gating Variables')
-        axs[2].legend()
-        # i_inj_values = [self.I_inj(t) for t in self.t]
-        # axs[3].plot(self.t, i_inj_values, 'k')
-        # axs[3].set(xlabel='t (ms)',ylabel='$I_{inj}$ ($\\mu{A}/cm^2$)')
-        axs[3].plot(V, h)
-        axs[3].set(xlabel='V (mv)', ylabel='h')
+            # axs[4].plot(list(v_range), v_nullcline_y)
+            # axs[4].set(xlabel='V (-100 to 30 mv)', ylabel='h (V nullcline)')
 
-        axs[4].plot(list(v_range), v_nullcline_y)
-        axs[4].set(xlabel='V (-100 to 30 mv)', ylabel='h (V nullcline)')
+            # axs[4].plot(list(v_range), h_nullcline_y)
+            # axs[4].set(xlabel='V (-100 to 30 mv)', ylabel='h (h nullcline)')
 
-        axs[5].plot(list(v_range), h_nullcline_y)
-        axs[5].set(xlabel='V (-100 to 30 mv)', ylabel='h (h nullcline)')
+            plt.savefig('BS-I10.jpg', format = 'jpg')
 
-        plt.savefig('BS-I10.jpg', format = 'jpg')
-
-        plt.show()
-
+            plt.show()
+        else:
+            line1, = plt.plot(V,h, label='$Phase Plane$')
+            line2, = plt.plot(list(v_range), v_nullcline_y)
+            line3, = plt.plot(list(v_range), h_nullcline_y)
+            plt.xlabel("V")
+            plt.ylabel("h")
+            plt.legend([line1, line2, line3], ['Phase Plane', 'V Nullcline', 'H Nullcline'])
+            plt.show()
 
 
 if __name__ == '__main__':
-    # runner = ButeraSmith(tmax=10000.0, el=-65.0, is_reduction=False)
+    # runner = ButeraSmith(tmax=1000.0, el=-65.0, is_reduction=True, is_plotting_nullcline=False)
     # runner.Main()
-    runner = ButeraSmith(tmax=50000.0, el=-60.0, is_reduction=True)
+    runner = ButeraSmith(tmax=50000.0, el=-60.0, is_reduction=True, is_plotting_nullcline=True)
     runner.Main()
-    # runner = ButeraSmith(tmax=1000.0, el=-65.0, is_reduction=False)
-    # runner.Main()
 
 
 """
